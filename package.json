@@ -1,0 +1,24 @@
+{
+  "name": "realm-kinesis-producer",
+  "version": "1.0.0",
+  "description": "realm object server listener that directs notifications to an AWS kinesis stream",
+  "keywords": [
+    "realm",
+    "kinesis",
+    "cartasite"
+  ],
+  "homepage": "https://github.com/Cartasite/realm-kinesis-producer",
+  "author": "Laura Thompson (http://www.cartasite.com)",
+  "bugs": {
+    "url": "https://github.com/Cartasite/realm-kinesis-producer/issues",
+    "email": "lthompson@cartasite.com"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "aws-sdk": "^2.88.0",
+    "dotenv": "^4.0.0",
+    "fast-crc32c": "^1.0.4",
+    "moment": "^2.18.1",
+    "realm": "^1.10.0"
+  }
+}

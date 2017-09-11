@@ -23,11 +23,6 @@ SOFTWARE.
 const Realm = require('realm');
 const eventTranslator = require('./EventTranslator');
 const KinesisClient = require('./KinesisClient');
-const dotenv = require('dotenv');
-
-// read in the .env file to process the environment variables (if any)
-// NOTE: these will override any existing variables
-dotenv.config();
 
 // debug code to show environment - helpful to ensure you are using the correct keys
 if (process.env.showEnv && process.env.showEnv.toUpperCase() === 'TRUE')

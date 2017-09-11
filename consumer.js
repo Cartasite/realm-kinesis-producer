@@ -21,12 +21,6 @@ SOFTWARE.
  */
 
 const KinesisClient = require('./KinesisClient');
-const fs = require('fs');
-const dotenv = require('dotenv');
-
-// read in the .env file to process the environment variables (if any)
-// NOTE: these will override any existing variables
-//dotenv.config();
 
 // set the name of the kinesis stream you wish to use for notifications here
 let streamName = process.env.kinesisStreamName;
@@ -36,13 +30,9 @@ let kinesisClient = new KinesisClient();
 
 console.log(`Listening for events on stream '${streamName}'\n`);
 
-// clear the log file
-const kinesisLogPath = '/Users/lthompson/Source/realm-kinesis-producer/kinesisOut.json';
-fs.unlink(kinesisLogPath);
-
 // start listening to all shards of a stream
-let iteratorType = KinesisClient.IteratorTypes.AtSequenceNumber;
-iteratorType.sequenceNumber = "49575635755065658307081199647815797562407787769207193602";
+let iteratorType = KinesisClient.IteratorTypes.Latest;
+
 kinesisClient.listen(streamName, recordHandler, iteratorType);
 
 // this method is called once for every record it reads from Kinesis
@@ -54,7 +44,6 @@ function recordHandler(err, record) {
     // in a non-trivial example, you might do work
     console.log(`[Read]: SequenceNumber '${record.SequenceNumber}'`);
 
-    fs.appendFileSync(kinesisLogPath,JSON.stringify(record) + ",\n");
-    //console.log(JSON.stringify(record));
+    console.log(JSON.stringify(record));
 }
 

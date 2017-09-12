@@ -24,6 +24,8 @@ const Realm = require('realm');
 const eventTranslator = require('./EventTranslator');
 const KinesisClient = require('./KinesisClient');
 
+require('dotenv').config();
+
 // debug code to show environment - helpful to ensure you are using the correct keys
 if (process.env.showEnv && process.env.showEnv.toUpperCase() === 'TRUE')
     console.log(process.env);

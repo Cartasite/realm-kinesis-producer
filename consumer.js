@@ -28,6 +28,8 @@ let streamName = process.env.kinesisStreamName;
 // create a kinesis client outside the handler so it persists between change events
 let kinesisClient = new KinesisClient();
 
+require('dotenv').config();
+
 console.log(`Listening for events on stream '${streamName}'\n`);
 
 // start listening to all shards of a stream

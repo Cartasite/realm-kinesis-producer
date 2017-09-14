@@ -33,7 +33,7 @@ class KinesisClient {
         // this is a queue of message queues (array of arrays), each no more than 500 messages long
         this._messageSizeLimit = 1000000;
         this._messageLimit = 250;   // max 500 records per PUT
-        this._messageTimeout = 800; // wait 500 ms between PUT
+        this._messageTimeout = 1000; // wait 500 ms between PUT
         this._messageQueue = [];
         this._messageTimer = null;
         this._iteratorWaitTime = 200;

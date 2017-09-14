@@ -21,14 +21,13 @@ SOFTWARE.
  */
 
 const KinesisClient = require('./KinesisClient');
+require('dotenv').config();
 
 // set the name of the kinesis stream you wish to use for notifications here
 let streamName = process.env.kinesisStreamName;
 
 // create a kinesis client outside the handler so it persists between change events
 let kinesisClient = new KinesisClient();
-
-require('dotenv').config();
 
 console.log(`Listening for events on stream '${streamName}'\n`);
 

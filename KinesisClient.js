@@ -133,10 +133,11 @@ class KinesisClient {
     // a high-level method to listen to a stream and execute a callback function on every record received
     listen(streamName, recordCallback, iteratorType = KinesisClient.IteratorTypes.Latest) {
         this.describeStream(streamName, (err, response) => {
-            let streamDescription = response.StreamDescription;
             if (err) {
                 return console.log("[Error]:\t", err);
             }
+
+            let streamDescription = response.StreamDescription;
 
             // get an array of all the shards in the stream
             let shardIdArray = streamDescription.Shards.map((shard) => {

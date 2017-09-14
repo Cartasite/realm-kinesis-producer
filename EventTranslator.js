@@ -108,6 +108,7 @@ function eventTranslator(changeEvent) {
 
             // iterate over all remaining deletions
             for(let deleteItem of checksums.deletions) {
+                console.log(`[Delete]: ${JSON.stringify(deleteItem)}`);
                 // if we didn't find a match above, this must be a real deletion
                 translated.push({
                     Data: {collectionName, delete: deleteItem.data},

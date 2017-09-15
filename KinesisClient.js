@@ -23,6 +23,7 @@ SOFTWARE.
 const AWS = require('aws-sdk');
 const crc32 = require('fast-crc32c');
 const fs = require('fs');
+const moment = require('moment');
 
 class KinesisClient {
     constructor(options) {
@@ -38,7 +39,7 @@ class KinesisClient {
         this._messageTimer = null;
         this._iteratorWaitTime = 200;
         this._nextIteratorTimeout = 5000;
-        this._count = 0;
+        this._count = 0; // todo: support more than one stream
 
         // check to see if the queue is full
         if (this._messageQueue.length === this._messageLimit) {
@@ -87,6 +88,27 @@ class KinesisClient {
             params.StartingSequenceNumber = iteratorType.sequenceNumber;
         }
         return this.kinesis.getShardIterator(params, cb);
+    }
+
+    _getQueueDepth(streamName) {
+        const dirPath = '/tmp';
+        const fs = require('fs');
+
+        let files = fs.readdirSync(dirPath);
+        let file = files.reduce((accum, filename) => {
+            if (!filename.includes(streamName))
+                return accum;
+
+        },0);
+        if (!file)
+            return null;
+
+        // construct a path for the message queue item
+        let path = `${dirPath}/${file}`;
+
+        // load the kinesis parameters file into memory as an object
+        let kinesisParams = require(path);
+
     }
 
     // private method that constantly looks for more data. When no data is found, it waits 1 second before trying again to prevent throttling by AWS
@@ -177,85 +199,119 @@ class KinesisClient {
         return message;
     }
 
-    // this method adds all records to a queue and starts a timer. when the queue is full or the timeout expires it sends the records to Kinesis
-    putRecord(streamName, record) {
-        // add the record to the queue
-        this._messageQueue.push(record);
+    // add messages to a queue which will be drained via a separate process
+    putRecords(streamName, messages) {
+        if (!messages || messages.length < 1)
+            return;
+        let records = messages.map((queuedMessage) => { return this._prepareRecord(queuedMessage); });
 
-        // write the messages to the log
-        if (process.env.verbose && process.env.verbose.toUpperCase() === 'TRUE')
-            console.log(`[Put]:\t1 record added to queue. Size is now ${this._messageQueue.length} records`);
+        while(records.length > 0) {
+            // break the records into chunks that kinesis can consume
+            let estimatedSize = 0;
 
-        // set a timer to send all records in 1 second
+            // prepare the parameter payload for putRecord
+            let params = {
+                Records: [], /* required */
+                StreamName: streamName /* required */
+            };
+
+            // add as many records to the parameter message as will fit, as constrained by kinesis message limits
+            while (records.length > 0 && estimatedSize < this._messageSizeLimit && params.Records.length < this._messageLimit) {
+                let message = records.pop();
+                estimatedSize += message.Data.length + 40;
+                params.Records.push(message);
+            }
+
+            this._pushRecords(streamName, params);
+
+            // write the messages to the log
+            if (process.env.verbose && process.env.verbose.toUpperCase() === 'TRUE')
+                console.log(`[Put]:\t${params.Records.length} record(s) added to queue. Queue size is now ${this._count}`);
+        }
         this._sendMessages(streamName);
     }
 
-    // when putting many records, simply call putRecord repeatedly - this is ok because records are sent no faster than once every 500 ms
-    putRecords(streamName, records) {
-        this._messageQueue = this._messageQueue.concat(records);
+    _pushRecords(streamName, params) {
+        this._count += params.Records.length;
+        // write the kinesis message payload to a file for later use
+        let path = `/tmp/${streamName}-queue-${moment().format('x')}.json`;
+        fs.writeFileSync(path, JSON.stringify(params));
+    }
 
-        // write the messages to the log
-        if (process.env.verbose && process.env.verbose.toUpperCase() === 'TRUE')
-            console.log(`[Put]:\t${records.length} record(s) added to queue. Size is now ${this._messageQueue.length} record(s)`);
+    _popRecords(streamName) {
+        const dirPath = '/tmp';
+        const fs = require('fs');
 
-        // set a timer to send all records in _messageTimeout milliseconds
-        this._sendMessages(streamName);
+        let files = fs.readdirSync(dirPath);
+        let file = files.reduce((accum, filename) => {
+            if (!filename.includes(streamName))
+                return accum;
+            if (!accum || accum > filename)
+                return filename;
+            return accum;
+        },null);
+        if (!file)
+            return null;
+
+        // construct a path for the message queue item
+        let path = `${dirPath}/${file}`;
+
+        // load the kinesis parameters file into memory as an object
+        let kinesisParams = require(path);
+
+        // if successful, remove the temp file
+        if (kinesisParams)
+            fs.unlink(path);
+
+        // return the parameters
+        return kinesisParams;
     }
 
     // set a timer to send messages in a timeout period. allows multiple messages to accumulate in a queue before sending them
+    __sendMessages(streamName) {
+        // create a worker closure to get the next message and send it to kinesis
+        let worker = function(delay){
+            return function(){
+                let records = this._popRecords(streamName);
+                if(records) {
+                    setTimeout(worker, delay);
+                    this._sendToKinesis(streamName, records);
+                }
+            };
+        }(this._messageTimeout).bind(this);
+
+        // set a timeout to execute the worker
+        setTimeout(worker, this._messageTimeout);
+    };
+
+    // set a timer to send messages in a timeout period. allows multiple messages to accumulate in a queue before sending them
     _sendMessages(streamName) {
-        if (this._messageQueue.length > 0) {
-            if (!this._messageTimer)
-                this._messageTimer = setInterval(() => {
-                    this._sendToKinesis(streamName);
-                }, this._messageTimeout);
-        } else {
-            if (process.env.verbose && process.env.verbose.toUpperCase() === 'TRUE')
-                console.log(`[Send]:\tQueue is empty`);
-        }
+        if (!this._messageTimer)
+            this._messageTimer = setInterval(() => {
+                let records = this._popRecords(streamName);
+                if(records) {
+                    this._sendToKinesis(streamName, records);
+                }
+            }, this._messageTimeout);
     }
 
     // the private method that actually sends all messages in the messageQueue to Kinesis - it is called manually when the queue is full or when a timeout expires
-    _sendToKinesis(streamName) {
-        // move up to
-        let messageCount = this._messageQueue.length <= this._messageLimit ? this._messageQueue.length : this._messageLimit;
-        if (messageCount < 1) {
-            return;
-        }
-
-        // prepare the parameter payload for putRecord
-        let params = {
-            Records: [], /* required */
-            StreamName: streamName /* required */
-        };
-        let estimatedSize = 0;
-
-        // add as many records to the parameter message as will fit, as constrained by kinesis message limits
-        while(estimatedSize < this._messageSizeLimit && params.Records.length < this._messageLimit && params.Records.length < this._messageQueue.length) {
-            let index =  params.Records.length;
-            let queuedMessage = this._messageQueue[index];
-            let message = this._prepareRecord(queuedMessage);
-            estimatedSize += message.Data.length + 40;
-            params.Records.push(message);
-        }
-
-        // remove messages from the front of the queue
-        let messages = this._messageQueue.splice(0, params.Records.length);
-
+    _sendToKinesis(streamName, params) {
         if (process.env.verbose && process.env.verbose.toUpperCase() === 'TRUE')
-            console.log(`[Send]:\t${params.Records.length} will be sent. ${this._messageQueue.length} remain.`);
+            console.log(`[Sending]:\t${params.Records.length} of ${this._count}`);
 
         // write the record to the stream
         this.kinesis.putRecords(params, (err, putResponse) => {
             if (err) {
                 // add the unsent messages to the the error log
                 fs.appendFile('errors.log', JSON.stringify(messages));
+                this._pushRecords(streamName,params);
                 return console.log('[Write Error]:\t' + err);
             }
 
             if (putResponse.FailedRecordCount > 0)
-                this.putRecords(streamName, messages);
-
+                this._pushRecords(streamName, params);
+            this._count -= params.Records.length;
             console.log(`[Sent]:\t${params.Records.length} records. Response: ${JSON.stringify(putResponse)}`);
         });
     }

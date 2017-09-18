@@ -304,7 +304,7 @@ class KinesisClient {
         this.kinesis.putRecords(params, (err, putResponse) => {
             if (err) {
                 // add the unsent messages to the the error log
-                fs.appendFile('errors.log', JSON.stringify(messages));
+                fs.appendFile('errors.log', JSON.stringify({ err, params }));
                 this._pushRecords(streamName,params);
                 return console.log('[Write Error]:\t' + err);
             }

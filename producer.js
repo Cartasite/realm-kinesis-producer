@@ -55,8 +55,8 @@ let streamName = process.env.kinesisStreamName;
 // create a kinesis client outside the handler so it persists between change events
 let kinesisClient = new KinesisClient({
     region: process.env.aws_default_region,
-    aws_access_key_id: process.env.aws_access_key_id,
-    aws_secret_access_key: process.env.aws_secret_access_key
+    accessKeyId: process.env.aws_access_key_id,
+    secretAccessKey: process.env.aws_secret_access_key
 });
 
 // Unlock Professional Edition APIs - this is only required if you need more than 3 functions per server

@@ -257,14 +257,19 @@ class KinesisClient {
         let path = `${dirPath}/${file}`;
 
         // load the kinesis parameters file into memory as an object
-        let kinesisParams = require(path);
+        try {
+            let kinesisParams = require(path);
 
-        // if successful, remove the temp file
-        if (kinesisParams)
-            fs.unlink(path);
+            // if successful, remove the temp file
+            if (kinesisParams)
+                fs.unlink(path);
 
+            return kinesisParams;
+        } catch (err) {
+
+        }
         // return the parameters
-        return kinesisParams;
+        return null;
     }
 
     // set a timer to send messages in a timeout period. allows multiple messages to accumulate in a queue before sending them
